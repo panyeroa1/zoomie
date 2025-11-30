@@ -34,9 +34,14 @@ export class AudioStreamer {
   private checkInterval: number | null = null;
   private scheduledTime: number = 0;
   private initialBufferTime: number = 0.1; //0.1 // 100ms initial buffer
+  
   // Web Audio API nodes. source => gain => destination
   public gainNode: GainNode;
   public source: AudioBufferSourceNode;
+  
+  // Track active sources to stop them individually without destroying the graph
+  private activeSources: Set<AudioBufferSourceNode> = new Set();
+  
   private endOfQueueAudioSource: AudioBufferSourceNode | null = null;
   private keepAliveOscillator: OscillatorNode | null = null;
 
@@ -153,7 +158,6 @@ export class AudioStreamer {
       // add the new handler to it
       workletsRecord[workletName].handlers.push(handler);
       return Promise.resolve(this);
-      //throw new Error(`Worklet ${workletName} already exists on context`);
     }
 
     if (!workletsRecord) {
@@ -174,14 +178,6 @@ export class AudioStreamer {
     return this;
   }
 
-  /**
-   * Converts a Uint8Array of PCM16 audio data into a Float32Array.
-   * PCM16 is a common raw audio format, but the Web Audio API generally
-   * expects audio data as Float32Arrays with samples normalized between -1.0 and 1.0.
-   * This function handles that conversion.
-   * @param chunk The Uint8Array containing PCM16 audio data.
-   * @returns A Float32Array representing the converted audio data.
-   */
   private _processPCM16Chunk(chunk: Uint8Array): Float32Array {
     const float32Array = new Float32Array(chunk.length / 2);
     const dataView = new DataView(chunk.buffer);
@@ -198,25 +194,18 @@ export class AudioStreamer {
   }
 
   addPCM16(chunk: Uint8Array) {
-    // Reset the stream complete flag when a new chunk is added.
     this.isStreamComplete = false;
-    // Process the chunk into a Float32Array
     let processingBuffer = this._processPCM16Chunk(chunk);
-    // Add the processed buffer to the queue if it's larger than the buffer size.
-    // This is to ensure that the buffer is not too large.
     while (processingBuffer.length >= this.bufferSize) {
       const buffer = processingBuffer.slice(0, this.bufferSize);
       this.audioQueue.push(buffer);
       processingBuffer = processingBuffer.slice(this.bufferSize);
     }
-    // Add the remaining buffer to the queue if it's not empty.
     if (processingBuffer.length > 0) {
       this.audioQueue.push(processingBuffer);
     }
-    // Start playing if not already playing.
     if (!this.isPlaying) {
       this.isPlaying = true;
-      // Initialize scheduledTime only when we start playing
       this.scheduledTime = this.context.currentTime + this.initialBufferTime;
       this.scheduleNextBuffer();
     }
@@ -243,12 +232,16 @@ export class AudioStreamer {
       const audioBuffer = this.createAudioBuffer(audioData);
       const source = this.context.createBufferSource();
 
+      // Track this source
+      this.activeSources.add(source);
+
       if (this.audioQueue.length === 0) {
         if (this.endOfQueueAudioSource) {
           this.endOfQueueAudioSource.onended = null;
         }
         this.endOfQueueAudioSource = source;
         source.onended = () => {
+          this.activeSources.delete(source);
           if (
             !this.audioQueue.length &&
             this.endOfQueueAudioSource === source
@@ -256,6 +249,11 @@ export class AudioStreamer {
             this.endOfQueueAudioSource = null;
             this.onComplete();
           }
+        };
+      } else {
+        // Standard cleanup for non-end chunks
+        source.onended = () => {
+          this.activeSources.delete(source);
         };
       }
 
@@ -278,7 +276,7 @@ export class AudioStreamer {
           }
         });
       }
-      // Ensure we never schedule in the past
+      
       const startTime = Math.max(this.scheduledTime, this.context.currentTime);
       source.start(startTime);
       this.scheduledTime = startTime + audioBuffer.duration;
@@ -314,26 +312,29 @@ export class AudioStreamer {
     this.isPlaying = false;
     this.isStreamComplete = true;
     this.audioQueue = [];
+    
+    // Stop all currently playing sources smoothly
+    this.activeSources.forEach(source => {
+      try {
+        source.stop();
+      } catch (e) {
+        // Ignore errors if source is already stopped
+      }
+    });
+    this.activeSources.clear();
+
+    // Reset scheduling time
     this.scheduledTime = this.context.currentTime;
     
-    // Stop pad if active
-    this.stopPad();
+    // NOTE: We do NOT call stopPad() here anymore. 
+    // The background ambience should persist during speech interruptions.
 
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
     }
-
-    this.gainNode.gain.linearRampToValueAtTime(
-      0,
-      this.context.currentTime + 0.1
-    );
-
-    setTimeout(() => {
-      this.gainNode.disconnect();
-      this.gainNode = this.context.createGain();
-      this.gainNode.connect(this.context.destination);
-    }, 200);
+    
+    // We do NOT disconnect the gainNode anymore to prevent breaking the graph
   }
 
   async resume() {

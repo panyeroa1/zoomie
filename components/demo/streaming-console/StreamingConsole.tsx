@@ -12,11 +12,35 @@ import {
   useTools,
 } from '@/lib/state';
 
-// Helper component for Teleprompter Script Effect
+// Helper component for Teleprompter Script Effect with Typewriter
 const ScriptReader = memo(({ text }: { text: string }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  
+  useEffect(() => {
+    let index = 0;
+    // Reset when text changes (new log entry usually implies new text)
+    if (text === displayedText) return;
+    
+    // Calculate typing speed - faster for long text to keep up, but minimum readable speed
+    const typingSpeed = 20; 
+
+    const interval = setInterval(() => {
+      setDisplayedText((prev) => {
+        if (index >= text.length) {
+          clearInterval(interval);
+          return text;
+        }
+        index++;
+        return text.slice(0, index);
+      });
+    }, typingSpeed);
+
+    return () => clearInterval(interval);
+  }, [text]);
+
   // Simple parser to separate stage directions from spoken text
   // Directions are in parentheses () or brackets []
-  const parts = text.split(/([(\[].*?[)\]])/g);
+  const parts = displayedText.split(/([(\[].*?[)\]])/g);
 
   return (
     <div className="script-line">
