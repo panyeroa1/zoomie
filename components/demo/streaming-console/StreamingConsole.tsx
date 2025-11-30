@@ -2,7 +2,7 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { useEffect, useRef, memo } from 'react';
+import { useEffect, useRef, memo, useState } from 'react';
 import { LiveConnectConfig, Modality, LiveServerContent } from '@google/genai';
 
 import { useLiveAPIContext } from '../../../contexts/LiveAPIContext';
@@ -31,6 +31,27 @@ const ScriptReader = memo(({ text }: { text: string }) => {
     </div>
   );
 });
+
+// Digital Clock Component
+const DigitalClock = () => {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="digital-clock">
+      <div className="clock-time">
+        {time.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+      </div>
+      <div className="clock-date">
+        {time.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+      </div>
+    </div>
+  );
+};
 
 export default function StreamingConsole() {
   const { client, setConfig } = useLiveAPIContext();
@@ -126,23 +147,31 @@ export default function StreamingConsole() {
   const scriptTurns = turns.filter(t => t.role === 'system');
 
   return (
-    <div className="transcription-container">
-      {scriptTurns.length === 0 ? (
-        <div className="waiting-placeholder">
-          <span className="material-symbols-outlined icon">auto_stories</span>
-          <p>Waiting for Eburon Script...</p>
-        </div>
-      ) : (
-        <div className="transcription-view teleprompter-mode" ref={scrollRef}>
-          {scriptTurns.map((t, i) => (
-            <div key={i} className="transcription-entry system">
-              <div className="transcription-text-content">
-                <ScriptReader text={t.text} />
-              </div>
+    <div className="streaming-console-layout">
+      <DigitalClock />
+      
+      <div className="transcription-container">
+        {scriptTurns.length === 0 ? (
+          <div className="console-box empty">
+            <div className="waiting-placeholder">
+              <span className="material-symbols-outlined icon">auto_stories</span>
+              <p>Waiting for stream...</p>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="console-box">
+            <div className="transcription-view teleprompter-mode" ref={scrollRef}>
+              {scriptTurns.map((t, i) => (
+                <div key={i} className="transcription-entry system">
+                  <div className="transcription-text-content">
+                    <ScriptReader text={t.text} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
