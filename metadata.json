@@ -1,0 +1,7 @@
+{
+  "name": "sunday",
+  "description": "An interactive sandbox",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
