@@ -1,3 +1,4 @@
+
 body {
   margin: 0;
   font-family:
@@ -92,7 +93,6 @@ header {
   width: 100%;
   z-index: 999;
   background: var(--bg-app);
-  /* Replaced border-bottom with gradient pseudo-element below */
 }
 
 header::after {
@@ -105,12 +105,21 @@ header::after {
   background: linear-gradient(to right, var(--accent-blue), var(--accent-green), var(--accent-red));
 }
 
-header h1 {
+.header-logo-text {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-main);
   display: flex;
   align-items: center;
+  background: linear-gradient(to right, var(--accent-blue), var(--accent-green));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: var(--text-main); /* Fallback */
+}
+
+.header-logo-text .accent-dot {
+  color: var(--accent-red);
+  -webkit-text-fill-color: var(--accent-red);
 }
 
 header .header-right {
@@ -119,9 +128,18 @@ header .header-right {
   gap: 1rem;
 }
 
-header button .icon {
+.header-icon {
   font-family: 'Material Symbols Outlined';
   font-size: 24px;
+  transition: color 0.2s ease;
+}
+
+.settings-icon {
+  color: var(--text-secondary);
+}
+
+.settings-button:hover .settings-icon {
+  color: var(--accent-blue);
 }
 
 /* Streaming Console */
@@ -393,7 +411,7 @@ select, textarea {
     padding: 1rem;
   }
   
-  header h1 {
+  .header-logo-text {
     font-size: 1.25rem;
   }
 

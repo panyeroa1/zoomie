@@ -11,7 +11,13 @@ import { SUPPORTED_LANGUAGES, AVAILABLE_VOICES } from '@/lib/constants';
 
 export default function Sidebar() {
   const { isSidebarOpen, toggleSidebar } = useUI();
-  const { language, setLanguage, voice, setVoice, voiceStyle, setVoiceStyle } = useSettings();
+  const { 
+    language, setLanguage, 
+    voice, setVoice, 
+    voiceStyle, setVoiceStyle,
+    backgroundPadEnabled, setBackgroundPadEnabled,
+    backgroundPadVolume, setBackgroundPadVolume
+  } = useSettings();
   const { connected } = useLiveAPIContext();
   const [dbData, setDbData] = useState<EburonTTSCurrent | null>(null);
 
@@ -149,11 +155,58 @@ export default function Sidebar() {
                   <option value="dramatic">Dramatic (Slow)</option>
                 </select>
               </div>
-              
+
               <div style={{marginTop: '20px', padding: '12px', background: 'var(--bg-panel-secondary)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic'}}>
                  System Prompt is managed automatically by Eburon Controller based on selected language and style.
               </div>
             </fieldset>
+          </div>
+
+          <div className="sidebar-section">
+            <h4 className="sidebar-section-title">Background Audio</h4>
+            <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+               <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                 <label style={{fontSize: '0.9rem'}}>Ambient Pad</label>
+                 <label className="switch" style={{position: 'relative', display: 'inline-block', width: '40px', height: '24px'}}>
+                   <input 
+                      type="checkbox" 
+                      checked={backgroundPadEnabled}
+                      onChange={(e) => setBackgroundPadEnabled(e.target.checked)}
+                      style={{opacity: 0, width: 0, height: 0}}
+                   />
+                   <span 
+                     style={{
+                       position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0, 
+                       backgroundColor: backgroundPadEnabled ? 'var(--accent-blue)' : 'var(--Neutral-30)', 
+                       transition: '.4s', borderRadius: '24px'
+                     }}
+                   >
+                     <span style={{
+                       position: 'absolute', content: '""', height: '16px', width: '16px', 
+                       left: backgroundPadEnabled ? '20px' : '4px', bottom: '4px', 
+                       backgroundColor: 'white', transition: '.4s', borderRadius: '50%'
+                     }}></span>
+                   </span>
+                 </label>
+               </div>
+               
+               {backgroundPadEnabled && (
+                 <div>
+                   <label style={{display: 'block', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-secondary)'}}>
+                     Volume: {Math.round(backgroundPadVolume * 100)}%
+                   </label>
+                   <input 
+                      type="range" 
+                      min="0" 
+                      max="0.5" 
+                      step="0.01" 
+                      value={backgroundPadVolume}
+                      onChange={(e) => setBackgroundPadVolume(parseFloat(e.target.value))}
+                      style={{width: '100%', cursor: 'pointer'}}
+                   />
+                 </div>
+               )}
+            </div>
           </div>
           
           <div className="sidebar-section">

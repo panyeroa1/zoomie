@@ -49,22 +49,30 @@ export const useSettings = create<{
   voice: string;
   voiceStyle: VoiceStyle;
   language: string;
+  backgroundPadEnabled: boolean;
+  backgroundPadVolume: number;
   setSystemPrompt: (prompt: string) => void;
   setModel: (model: string) => void;
   setVoice: (voice: string) => void;
   setVoiceStyle: (style: VoiceStyle) => void;
   setLanguage: (language: string) => void;
+  setBackgroundPadEnabled: (enabled: boolean) => void;
+  setBackgroundPadVolume: (volume: number) => void;
 }>(set => ({
   language: '',
   systemPrompt: generateSystemPrompt(''),
   model: DEFAULT_LIVE_API_MODEL,
   voice: DEFAULT_VOICE,
   voiceStyle: 'breathy',
+  backgroundPadEnabled: false,
+  backgroundPadVolume: 0.2,
   setSystemPrompt: prompt => set({ systemPrompt: prompt }),
   setModel: model => set({ model }),
   setVoice: voice => set({ voice }),
   setVoiceStyle: voiceStyle => set({ voiceStyle }),
   setLanguage: language => set({ language, systemPrompt: generateSystemPrompt(language) }),
+  setBackgroundPadEnabled: enabled => set({ backgroundPadEnabled: enabled }),
+  setBackgroundPadVolume: volume => set({ backgroundPadVolume: volume }),
 }));
 
 /**

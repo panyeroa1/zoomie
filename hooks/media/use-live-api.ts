@@ -45,7 +45,7 @@ export function useLiveApi({
 }: {
   apiKey: string;
 }): UseLiveApiResults {
-  const { model } = useSettings();
+  const { model, backgroundPadEnabled, backgroundPadVolume } = useSettings();
   const client = useMemo(() => new GenAILiveClient(apiKey, model), [apiKey, model]);
 
   const audioStreamerRef = useRef<AudioStreamer | null>(null);
@@ -63,6 +63,11 @@ export function useLiveApi({
         // Apply initial volume state
         audioStreamerRef.current.gainNode.gain.value = isVolumeEnabled ? 1 : 0;
         
+        // Sync initial pad state
+        if (backgroundPadEnabled) {
+          audioStreamerRef.current.startPad(backgroundPadVolume);
+        }
+
         audioStreamerRef.current
           .addWorklet<any>('vumeter-out', VolMeterWorket, (ev: any) => {
             setVolume(ev.data.volume);
@@ -76,6 +81,23 @@ export function useLiveApi({
       });
     }
   }, [audioStreamerRef]);
+
+  // Sync background pad settings
+  useEffect(() => {
+    if (!audioStreamerRef.current) return;
+    
+    if (backgroundPadEnabled) {
+      audioStreamerRef.current.startPad(backgroundPadVolume);
+    } else {
+      audioStreamerRef.current.stopPad();
+    }
+  }, [backgroundPadEnabled]);
+
+  useEffect(() => {
+    if (audioStreamerRef.current && backgroundPadEnabled) {
+      audioStreamerRef.current.setPadVolume(backgroundPadVolume);
+    }
+  }, [backgroundPadVolume]);
 
   // Sync volume enabled state with gain node
   useEffect(() => {
@@ -172,13 +194,17 @@ export function useLiveApi({
     if (audioStreamerRef.current) {
       try {
         await audioStreamerRef.current.resume();
+        // Re-trigger pad if needed after resume
+        if (backgroundPadEnabled) {
+          audioStreamerRef.current.startPad(backgroundPadVolume);
+        }
       } catch (e) {
         console.warn('Failed to resume audio context:', e);
       }
     }
     
     await client.connect(config);
-  }, [client, config]);
+  }, [client, config, backgroundPadEnabled, backgroundPadVolume]);
 
   const disconnect = useCallback(async () => {
     client.disconnect();

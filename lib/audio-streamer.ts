@@ -40,6 +40,11 @@ export class AudioStreamer {
   private endOfQueueAudioSource: AudioBufferSourceNode | null = null;
   private keepAliveOscillator: OscillatorNode | null = null;
 
+  // Ambient Pad Components
+  private padGain: GainNode | null = null;
+  private padOscillators: OscillatorNode[] = [];
+  private padFilter: BiquadFilterNode | null = null;
+
   public onComplete = () => {};
 
   constructor(public context: AudioContext) {
@@ -73,6 +78,69 @@ export class AudioStreamer {
       console.warn('Failed to start keep-alive oscillator', e);
     }
   }
+
+  // --- Ambient Pad Logic ---
+  setPadVolume(volume: number) {
+    if (this.padGain) {
+      // Ramp to new volume for smooth transition
+      this.padGain.gain.linearRampToValueAtTime(volume, this.context.currentTime + 0.5);
+    }
+  }
+
+  startPad(volume: number) {
+    if (this.padGain) return; // Already running
+
+    const now = this.context.currentTime;
+    
+    // Master gain for the pad
+    this.padGain = this.context.createGain();
+    this.padGain.gain.value = 0; // Start silent for fade-in
+    
+    // Lowpass filter to make it "warm" and non-intrusive
+    this.padFilter = this.context.createBiquadFilter();
+    this.padFilter.type = 'lowpass';
+    this.padFilter.frequency.value = 400; // Muffled, warm sound
+    this.padFilter.Q.value = 1;
+
+    // Chain: Oscs -> Filter -> PadGain -> MainGain (so muting works)
+    this.padFilter.connect(this.padGain);
+    this.padGain.connect(this.gainNode);
+
+    // D Major / D drone (D3, A3, D4) - Neutral, hopeful, authoritative
+    const freqs = [146.83, 220.00, 293.66]; 
+    
+    freqs.forEach(f => {
+      const osc = this.context.createOscillator();
+      osc.type = 'triangle'; // Triangle is softer than saw, richer than sine
+      osc.frequency.value = f;
+      // Detune slightly for "chorus" effect
+      osc.detune.value = (Math.random() * 10) - 5; 
+      osc.connect(this.padFilter!);
+      osc.start();
+      this.padOscillators.push(osc);
+    });
+
+    // Fade in over 2 seconds
+    this.padGain.gain.linearRampToValueAtTime(volume, now + 2);
+  }
+
+  stopPad() {
+    if (!this.padGain) return;
+    const now = this.context.currentTime;
+    
+    // Fade out
+    this.padGain.gain.linearRampToValueAtTime(0, now + 2);
+    
+    setTimeout(() => {
+      this.padOscillators.forEach(o => o.stop());
+      this.padOscillators = [];
+      this.padGain?.disconnect();
+      this.padFilter?.disconnect();
+      this.padGain = null;
+      this.padFilter = null;
+    }, 2000);
+  }
+  // -------------------------
 
   async addWorklet<T extends (d: any) => void>(
     workletName: string,
@@ -247,6 +315,9 @@ export class AudioStreamer {
     this.isStreamComplete = true;
     this.audioQueue = [];
     this.scheduledTime = this.context.currentTime;
+    
+    // Stop pad if active
+    this.stopPad();
 
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
