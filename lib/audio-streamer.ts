@@ -38,6 +38,7 @@ export class AudioStreamer {
   public gainNode: GainNode;
   public source: AudioBufferSourceNode;
   private endOfQueueAudioSource: AudioBufferSourceNode | null = null;
+  private keepAliveOscillator: OscillatorNode | null = null;
 
   public onComplete = () => {};
 
@@ -46,6 +47,31 @@ export class AudioStreamer {
     this.source = this.context.createBufferSource();
     this.gainNode.connect(this.context.destination);
     this.addPCM16 = this.addPCM16.bind(this);
+    
+    // Start Keep-Alive to prevent background suspension
+    this.startKeepAlive();
+  }
+
+  private startKeepAlive() {
+    // Plays a silent/inaudible sound to keep the audio context active in background
+    try {
+      const oscillator = this.context.createOscillator();
+      const gain = this.context.createGain();
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 1; // 1 Hz (inaudible)
+      
+      // Extremely low gain, just enough to be "active" but effectively silent
+      gain.gain.value = 0.001; 
+      
+      oscillator.connect(gain);
+      gain.connect(this.context.destination);
+      
+      oscillator.start();
+      this.keepAliveOscillator = oscillator;
+    } catch (e) {
+      console.warn('Failed to start keep-alive oscillator', e);
+    }
   }
 
   async addWorklet<T extends (d: any) => void>(
@@ -253,17 +279,3 @@ export class AudioStreamer {
     this.onComplete();
   }
 }
-
-// // Usage example:
-// const audioStreamer = new AudioStreamer();
-//
-// // In your streaming code:
-// function handleChunk(chunk: Uint8Array) {
-//   audioStreamer.handleChunk(chunk);
-// }
-//
-// // To start playing (call this in response to a user interaction)
-// await audioStreamer.resume();
-//
-// // To stop playing
-// // audioStreamer.stop();

@@ -92,13 +92,25 @@ header {
   width: 100%;
   z-index: 999;
   background: var(--bg-app);
-  border-bottom: 1px solid var(--border-color);
+  /* Replaced border-bottom with gradient pseudo-element below */
+}
+
+header::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(to right, var(--accent-blue), var(--accent-green), var(--accent-red));
 }
 
 header h1 {
   font-size: 1.5rem;
-  font-weight: 500;
+  font-weight: 700;
   color: var(--text-main);
+  display: flex;
+  align-items: center;
 }
 
 header .header-right {
@@ -138,32 +150,50 @@ header button .icon {
   height: calc(100% - 100px); /* Leave space for controls */
 }
 
-.transcription-view {
+/* Teleprompter Mode Styles */
+.transcription-view.teleprompter-mode {
   width: 100%;
-  max-width: 800px;
+  max-width: 900px;
   height: 100%;
   overflow-y: auto;
-  padding: 1rem;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  font-size: 1.1rem;
+  gap: 3rem;
+  /* Smooth scroll behavior */
+  scroll-behavior: smooth;
+  /* Add padding at bottom so last item can be centered */
+  padding-bottom: 40vh;
+}
+
+.transcription-view.teleprompter-mode .transcription-entry {
+  opacity: 0.6;
+  transition: opacity 0.5s ease;
+}
+
+.transcription-view.teleprompter-mode .transcription-entry:last-child {
+  opacity: 1; /* Highlight current */
+}
+
+.script-line {
+  font-family: 'Georgia', serif; /* Script font */
+  font-size: 1.8rem;
   line-height: 1.6;
+  text-align: center;
 }
 
-.transcription-entry.user .transcription-source { color: var(--accent-blue); }
-.transcription-entry.agent .transcription-source { color: var(--accent-green); }
-.transcription-entry.system .transcription-source { color: var(--text-secondary); }
+.script-direction {
+  display: block;
+  font-size: 1.2rem;
+  color: var(--accent-blue);
+  font-style: italic;
+  margin-bottom: 0.5rem;
+  font-family: 'Google Sans Display', sans-serif;
+}
 
-.transcription-text-content {
+.script-spoken {
   color: var(--text-main);
-}
-
-.transcription-source {
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  margin-bottom: 0.25rem;
+  font-weight: 500;
 }
 
 .waiting-placeholder {
@@ -201,6 +231,28 @@ header button .icon {
   display: flex;
   gap: 0.5rem;
   box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  align-items: center;
+}
+
+.tray-select {
+  height: 48px;
+  background: var(--bg-panel-secondary);
+  border: none;
+  border-radius: 24px;
+  color: var(--text-main);
+  padding: 0 2rem 0 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  appearance: none;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1em;
+  min-width: 150px;
+}
+
+.tray-select:focus {
+  outline: 2px solid var(--Blue-500);
 }
 
 .action-button {
@@ -217,6 +269,13 @@ header button .icon {
 
 .action-button:hover {
   background: var(--Neutral-30);
+}
+
+.action-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--bg-panel-secondary) !important;
+  color: var(--text-secondary) !important;
 }
 
 .action-button.connect-toggle {
@@ -240,6 +299,21 @@ header button .icon {
   font-size: 0.75rem;
   color: var(--Blue-500);
 }
+
+/* Audio Visualizer */
+.audio-visualizer-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+}
+
+.audio-visualizer-canvas {
+  width: 32px;
+  height: 24px;
+  image-rendering: pixelated; /* Sharp edges */
+}
+
 
 /* Sidebar */
 .sidebar {
@@ -327,7 +401,7 @@ select, textarea {
     width: 100%; /* Full width on mobile */
   }
   
-  .transcription-view {
+  .transcription-view.teleprompter-mode {
     padding: 1rem;
     font-size: 1rem;
   }
@@ -339,5 +413,14 @@ select, textarea {
   .action-button {
     width: 56px; /* Larger touch targets */
     height: 56px;
+  }
+  
+  .script-line {
+    font-size: 1.4rem;
+  }
+  
+  .tray-select {
+    min-width: 120px;
+    padding-right: 1.5rem;
   }
 }

@@ -167,6 +167,16 @@ export function useLiveApi({
       throw new Error('config has not been set');
     }
     client.disconnect();
+    
+    // CRITICAL: Resume audio context to ensure playback works on mobile/desktop
+    if (audioStreamerRef.current) {
+      try {
+        await audioStreamerRef.current.resume();
+      } catch (e) {
+        console.warn('Failed to resume audio context:', e);
+      }
+    }
+    
     await client.connect(config);
   }, [client, config]);
 

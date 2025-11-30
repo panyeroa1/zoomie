@@ -22,6 +22,9 @@ import cn from 'classnames';
 
 import { memo, ReactNode, useEffect, useRef } from 'react';
 import { useLiveAPIContext } from '../../../contexts/LiveAPIContext';
+import AudioVisualizer from '@/components/visualizer/AudioVisualizer';
+import { useSettings } from '@/lib/state';
+import { SUPPORTED_LANGUAGES } from '@/lib/constants';
 
 export type ControlTrayProps = {
   children?: ReactNode;
@@ -29,8 +32,9 @@ export type ControlTrayProps = {
 
 function ControlTray({ children }: ControlTrayProps) {
   const connectButtonRef = useRef<HTMLButtonElement>(null);
+  const { language, setLanguage } = useSettings();
 
-  const { connected, connect, disconnect, isVolumeEnabled, setIsVolumeEnabled } = useLiveAPIContext();
+  const { connected, connect, disconnect, isVolumeEnabled, setIsVolumeEnabled, volume } = useLiveAPIContext();
 
   useEffect(() => {
     if (!connected && connectButtonRef.current) {
@@ -38,7 +42,14 @@ function ControlTray({ children }: ControlTrayProps) {
     }
   }, [connected]);
 
-  const connectButtonTitle = connected ? 'Stop streaming' : 'Start streaming';
+  const connectButtonTitle = connected
+    ? 'Stop streaming'
+    : !language
+    ? 'Select a language to start'
+    : 'Start streaming';
+
+  // Disable play button if connected or if no language is selected (when disconnected)
+  const isPlayDisabled = !connected && !language;
 
   return (
     <section className="control-tray">
@@ -52,6 +63,23 @@ function ControlTray({ children }: ControlTrayProps) {
             {isVolumeEnabled ? 'volume_up' : 'volume_off'}
           </span>
         </button>
+
+        <div className="language-selector-container">
+          <select
+            className="tray-select"
+            value={language}
+            onChange={e => setLanguage(e.target.value)}
+            disabled={connected}
+          >
+            <option value="" disabled>Select Language</option>
+            {SUPPORTED_LANGUAGES.map(lang => (
+              <option key={lang} value={lang}>
+                {lang}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {children}
       </nav>
 
@@ -59,16 +87,22 @@ function ControlTray({ children }: ControlTrayProps) {
         <div className="connection-button-container">
           <button
             ref={connectButtonRef}
-            className={cn('action-button connect-toggle', { connected })}
+            className={cn('action-button connect-toggle', { connected, disabled: isPlayDisabled })}
             onClick={connected ? disconnect : connect}
             title={connectButtonTitle}
+            disabled={isPlayDisabled}
           >
             <span className="material-symbols-outlined filled">
               {connected ? 'pause' : 'play_arrow'}
             </span>
           </button>
         </div>
-        <span className="text-indicator">Streaming</span>
+        <div style={{display: 'flex', alignItems: 'center', gap: '8px', minWidth: '60px'}}>
+          <AudioVisualizer volume={volume} active={connected && isVolumeEnabled} />
+          <span className="text-indicator" style={{display: connected ? 'none' : 'block'}}>
+            {connected ? '' : language ? 'Ready' : 'Select Language'}
+          </span>
+        </div>
       </div>
     </section>
   );

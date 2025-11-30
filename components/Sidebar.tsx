@@ -2,16 +2,16 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { useSettings, useUI } from '@/lib/state';
+import { useSettings, useUI, VoiceStyle } from '@/lib/state';
 import c from 'classnames';
 import { useLiveAPIContext } from '@/contexts/LiveAPIContext';
 import { useEffect, useState } from 'react';
 import { supabase, EburonTTSCurrent } from '@/lib/supabase';
-import { SUPPORTED_LANGUAGES } from '@/lib/constants';
+import { SUPPORTED_LANGUAGES, AVAILABLE_VOICES } from '@/lib/constants';
 
 export default function Sidebar() {
   const { isSidebarOpen, toggleSidebar } = useUI();
-  const { language, setLanguage } = useSettings();
+  const { language, setLanguage, voice, setVoice, voiceStyle, setVoiceStyle } = useSettings();
   const { connected } = useLiveAPIContext();
   const [dbData, setDbData] = useState<EburonTTSCurrent | null>(null);
 
@@ -85,8 +85,8 @@ export default function Sidebar() {
 
           <div className="sidebar-section">
             <fieldset disabled={connected}>
-              <label>
-                Target Language
+              <div style={{marginBottom: '1rem'}}>
+                <label style={{display: 'block', marginBottom: '8px', fontSize: '0.85rem'}}>Target Language</label>
                 <select
                   value={language}
                   onChange={e => setLanguage(e.target.value)}
@@ -99,16 +99,59 @@ export default function Sidebar() {
                     paddingRight: '30px'
                   }}
                 >
+                  <option value="" disabled>Select...</option>
                   {SUPPORTED_LANGUAGES.map(lang => (
                     <option key={lang} value={lang}>
                       {lang}
                     </option>
                   ))}
                 </select>
-              </label>
+              </div>
+
+              <div style={{marginBottom: '1rem'}}>
+                <label style={{display: 'block', marginBottom: '8px', fontSize: '0.85rem'}}>Voice Model</label>
+                <select
+                  value={voice}
+                  onChange={e => setVoice(e.target.value)}
+                  style={{
+                    appearance: 'none',
+                    backgroundImage: `var(--select-arrow)`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 12px center',
+                    backgroundSize: '1em',
+                    paddingRight: '30px'
+                  }}
+                >
+                  {AVAILABLE_VOICES.map(v => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{display: 'block', marginBottom: '8px', fontSize: '0.85rem'}}>Voice Style</label>
+                <select
+                  value={voiceStyle}
+                  onChange={e => setVoiceStyle(e.target.value as VoiceStyle)}
+                  style={{
+                    appearance: 'none',
+                    backgroundImage: `var(--select-arrow)`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 12px center',
+                    backgroundSize: '1em',
+                    paddingRight: '30px'
+                  }}
+                >
+                  <option value="natural">Natural (Standard)</option>
+                  <option value="breathy">Breathy (Eburon Default)</option>
+                  <option value="dramatic">Dramatic (Slow)</option>
+                </select>
+              </div>
               
               <div style={{marginTop: '20px', padding: '12px', background: 'var(--bg-panel-secondary)', borderRadius: '8px', fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic'}}>
-                 System Prompt is managed automatically by Eburon Controller based on selected language.
+                 System Prompt is managed automatically by Eburon Controller based on selected language and style.
               </div>
             </fieldset>
           </div>
@@ -116,8 +159,7 @@ export default function Sidebar() {
           <div className="sidebar-section">
             <div style={{padding: '12px', background: 'var(--active-bg-subtle)', borderRadius: '8px', border: '1px solid var(--accent-blue)', fontSize: '12px'}}>
               <strong style={{display:'block', marginBottom:'4px', color:'var(--accent-blue)'}}>Eburon Active</strong>
-              Tools disabled. Polling interval: 5s. <br/>
-              Voice locked to: <strong>Orus</strong>.
+              Tools disabled. Polling interval: 5s.
             </div>
           </div>
 

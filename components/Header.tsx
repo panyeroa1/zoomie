@@ -10,7 +10,10 @@ export default function Header() {
   return (
     <header>
       <div className="header-left">
-        <h1>Zoomie</h1>
+        <h1>
+          Zoomie
+          <span style={{ color: 'var(--accent-red)' }}>.</span>
+        </h1>
       </div>
       <div className="header-right">
         <button 

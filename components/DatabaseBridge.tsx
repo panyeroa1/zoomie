@@ -5,7 +5,7 @@
 import { useEffect, useRef } from 'react';
 import { supabase, EburonTTSCurrent } from '../lib/supabase';
 import { useLiveAPIContext } from '../contexts/LiveAPIContext';
-import { useLogStore } from '../lib/state';
+import { useLogStore, useSettings } from '../lib/state';
 
 // Worker script to ensure polling continues even when tab is in background
 const workerScript = `
@@ -19,10 +19,25 @@ const workerScript = `
 // Helper to segment text into natural reading chunks (2-3 sentences)
 const segmentText = (text: string): string[] => {
   if (!text) return [];
-  
-  // Split by sentence endings, keeping the punctuation attached
-  // Matches "Sentence." or "Sentence!" or "Sentence?"
-  const sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
+
+  let sentences: string[] = [];
+
+  // Robust segmentation using Intl.Segmenter (handles abbreviations like Mr., Dr. correctly)
+  // This prevents splitting "St. Paul" into "St." and "Paul".
+  if (typeof Intl !== 'undefined' && 'Segmenter' in Intl) {
+    try {
+      // @ts-ignore - Intl.Segmenter might not be in all TS definitions yet
+      const segmenter = new (Intl as any).Segmenter('en', { granularity: 'sentence' });
+      // @ts-ignore
+      sentences = Array.from(segmenter.segment(text)).map((s: any) => s.segment);
+    } catch (e) {
+      // Fallback if instantiation fails
+      sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
+    }
+  } else {
+     // Fallback Regex
+     sentences = text.match(/[^.!?]+[.!?]+["']?|[^.!?]+$/g) || [text];
+  }
   
   const chunks: string[] = [];
   let currentChunk = '';
@@ -32,17 +47,22 @@ const segmentText = (text: string): string[] => {
     const cleanSentence = sentence.trim();
     if (!cleanSentence) continue;
     
-    currentChunk += cleanSentence + ' ';
+    // Add space if appending to existing chunk
+    if (currentChunk) currentChunk += ' ';
+    currentChunk += cleanSentence;
     sentenceCount++;
     
-    // Create a chunk every 2-3 sentences or if it gets too long, to provide breathing room
-    if (sentenceCount >= 3 || currentChunk.length > 200) {
+    // Chunking heuristics for natural pauses:
+    // 1. Group 2-3 sentences together to form a complete thought.
+    // 2. If the current chunk exceeds 250 chars, wrap it up to avoid running out of breath.
+    if ((sentenceCount >= 2 && currentChunk.length > 150) || sentenceCount >= 3 || currentChunk.length > 250) {
       chunks.push(currentChunk.trim());
       currentChunk = '';
       sentenceCount = 0;
     }
   }
   
+  // Push any remaining text
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
@@ -53,17 +73,19 @@ const segmentText = (text: string): string[] => {
 export default function DatabaseBridge() {
   const { client, connected } = useLiveAPIContext();
   const { addTurn } = useLogStore();
+  const { voiceStyle } = useSettings();
+  
   const lastProcessedIdRef = useRef<number | null>(null);
   
+  // Use a ref for voiceStyle so the effect loop doesn't become stale or restart
+  const voiceStyleRef = useRef(voiceStyle);
+  useEffect(() => {
+    voiceStyleRef.current = voiceStyle;
+  }, [voiceStyle]);
+
   // High-performance queue using Refs to handle data spikes without re-renders
   const queueRef = useRef<string[]>([]);
   const isProcessingRef = useRef(false);
-
-  // Processing Loop
-  // Defined as a ref-stable function or just inside effect? 
-  // Inside effect to capture current 'connected' state closure, 
-  // but needs to be careful about stale closures if effect doesn't re-run.
-  // We'll rely on the Ref for queue and checks against the 'connected' prop passed in deps.
 
   // Data Ingestion & Processing Logic
   useEffect(() => {
@@ -80,30 +102,43 @@ export default function DatabaseBridge() {
 
       try {
         // While there are items and we are still connected
-        // Note: We check queueRef.current.length directly
         while (queueRef.current.length > 0) {
-          const textChunk = queueRef.current[0];
+          const rawText = queueRef.current[0];
+          const style = voiceStyleRef.current;
 
-          // Log to console
+          // Inject Stage Directions based on selected Style
+          let scriptedText = rawText;
+          if (style === 'breathy') {
+            scriptedText = `(soft inhale) ${rawText} ... (pause)`;
+          } else if (style === 'dramatic') {
+             scriptedText = `(slowly) ${rawText} ... (long pause)`;
+          }
+          // 'natural' does not add tags
+
+          // Log to console as a "Script Item" so the UI displays it immediately
           addTurn({
             role: 'system',
-            text: `[Reading Segment] ${textChunk}`,
+            text: scriptedText,
             isFinal: true
           });
 
-          // Send to Gemini Live
-          client.send([{ text: textChunk }]);
+          // Send to Gemini Live to read
+          client.send([{ text: scriptedText }]);
 
           // Remove the item we just sent
           queueRef.current.shift();
 
           // Dynamic delay calculation for human-like pacing
           // Heuristic: ~2.5 words per second reading speed
-          const wordCount = textChunk.split(/\s+/).length;
+          const wordCount = rawText.split(/\s+/).length;
           const readTime = (wordCount / 2.5) * 1000;
           
-          // Buffer of 5-8 seconds as requested
-          const bufferTime = 5000 + (Math.random() * 3000); 
+          // Buffer calculation based on style
+          let bufferBase = 5000;
+          if (style === 'natural') bufferBase = 2000;
+          if (style === 'dramatic') bufferBase = 7000;
+
+          const bufferTime = bufferBase + (Math.random() * 2000); 
           const totalDelay = readTime + bufferTime;
           
           // Wait before processing next chunk
@@ -113,15 +148,17 @@ export default function DatabaseBridge() {
         console.error('Error in processing loop:', e);
       } finally {
         isProcessingRef.current = false;
-        // If items were added while we were waiting at the end of the loop,
-        // and the loop exited (e.g. some race condition), strictly the while loop handles it.
-        // But if we want to be doubly sure, we could re-check. 
-        // The while loop condition `queueRef.current.length > 0` handles the re-check naturally.
       }
     };
 
     const processNewData = (data: EburonTTSCurrent) => {
-      if (!data || !data.source_text) return;
+      // Prioritize translated text if it exists and is not empty, otherwise fall back to source.
+      // This satisfies the request to use the text "already written in the translation wanted".
+      const textToRead = (data.translated_text && data.translated_text.trim().length > 0) 
+        ? data.translated_text 
+        : data.source_text;
+
+      if (!data || !textToRead) return;
 
       // Deduplicate based on ID
       if (lastProcessedIdRef.current === data.id) {
@@ -131,15 +168,9 @@ export default function DatabaseBridge() {
       lastProcessedIdRef.current = data.id;
       
       // Segment the text
-      const segments = segmentText(data.source_text);
+      const segments = segmentText(textToRead);
       
       if (segments.length > 0) {
-        addTurn({
-          role: 'system',
-          text: `[Database] New Source (ID: ${data.id}) - Buffered ${segments.length} segments.`,
-          isFinal: true
-        });
-
         // Push new segments to the back of the queue
         queueRef.current.push(...segments);
 
@@ -189,8 +220,6 @@ export default function DatabaseBridge() {
     return () => {
       worker.terminate();
       supabase.removeChannel(channel);
-      // We don't strictly need to empty the queue on unmount, 
-      // but the `connected` check in the loop will stop processing naturally if this component unmounts (via context).
     };
   }, [connected, client, addTurn]);
 
