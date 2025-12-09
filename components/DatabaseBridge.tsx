@@ -115,6 +115,12 @@ export default function DatabaseBridge() {
           }
           // 'natural' does not add tags
 
+          // Ensure we don't send empty strings which can break the API
+          if (!scriptedText || !scriptedText.trim()) {
+            queueRef.current.shift();
+            continue;
+          }
+
           // Log to console as a "Script Item" so the UI displays it immediately
           addTurn({
             role: 'system',

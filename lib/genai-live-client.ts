@@ -162,9 +162,10 @@ export class GenAILiveClient {
       this.emitter.emit('error', new ErrorEvent('Client is not connected'));
       return;
     }
-    // FIX: Structure the content as a Content object (with a 'parts' array)
-    // The previous implementation sent Part[] directly to 'turns', causing internal server errors.
+    // FIX: Structure the content as a Content object with explicit role: 'user'.
+    // The API requires 'role' to be set, otherwise it may throw "Internal error encountered".
     const content: Content = {
+      role: 'user',
       parts: Array.isArray(parts) ? parts : [parts],
     };
 
@@ -242,7 +243,6 @@ export class GenAILiveClient {
         this.emitter.emit(
           'inputTranscription',
           serverContent.inputTranscription.text,
-          // FIX: Property 'isFinal' does not exist on type 'Transcription'.
           (serverContent.inputTranscription as any).isFinal ?? false,
         );
         this.log(
@@ -255,7 +255,6 @@ export class GenAILiveClient {
         this.emitter.emit(
           'outputTranscription',
           serverContent.outputTranscription.text,
-          // FIX: Property 'isFinal' does not exist on type 'Transcription'.
           (serverContent.outputTranscription as any).isFinal ?? false,
         );
         this.log(
